@@ -50,16 +50,16 @@
 	// this method is called when the module is first loaded
 	// you *must* call the superclass
 	[super startup];
-	
+
 	// Default is automatically reset badge
 	autoResetBadge = YES;
     self.pushHandler = nil;
-	
-	NSLog(@"[INFO] %@ loaded",self);
 
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self startUrbanAirship];
-    });
+	NSLog(@"[DEBUG] %@ loaded",self);
+
+    // dispatch_async(dispatch_get_main_queue(), ^{
+    //     [self startUrbanAirship];
+    // });
 }
 
 -(void)shutdown:(id)sender
@@ -119,7 +119,7 @@
 		NSLog(@"[DEBUG] Ignoring notification -- not initialized yet");
 		return;
 	}
-	
+
 	// [MOD-238] Automatically reset badge count on resume
     [self handleAutoBadgeReset];
 }
@@ -130,7 +130,16 @@
     }
 }
 
--(void)startUrbanAirship
++(void)load
+{
+    // Register to receive a notification for the application launching
+    // This mechanism allows the module to perform actions during application startup
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(startUrbanAirship:)
+                                                 name:@"UIApplicationDidFinishLaunchingNotification" object:nil];
+    [super load];
+}
+
++(void)startUrbanAirship:(NSNotification *)notification
 {
 	// SUPER WARNING!!!!!!
 	// This initialization method MUST be run on the UI thread. The setup of UAInboxUI and UAInboxNavUI must occur
@@ -163,14 +172,14 @@
 {
     NSMutableArray *retval = [[NSMutableArray alloc] init];
     UIUserNotificationType types = [UAirship push].userNotificationTypes;
-    
+
     if (types & UIUserNotificationTypeAlert);
         [retval addObject:NUMINT(UIUserNotificationTypeAlert)];
     if (types & UIUserNotificationTypeBadge);
         [retval addObject:NUMINT(UIUserNotificationTypeBadge)];
     if (types & UIUserNotificationTypeSound);
         [retval addObject:NUMINT(UIUserNotificationTypeSound)];
-    
+
     return retval;
 }
 
@@ -178,12 +187,12 @@
 {
     ENSURE_ARRAY(args);
     UIUserNotificationType types = UIUserNotificationTypeNone;
-    
+
     UA_LDEBUG(@"Setting Push Notification Types...");
     for (int i=0; i<[args count]; ++i) {
         types |= (UIUserNotificationType)[args objectAtIndex: i];
     }
-    
+
     [UAirship push].userNotificationTypes = types;
 }
 
@@ -191,24 +200,24 @@
 {
 	// The only argument to this method is the userInfo dictionary received from
 	// the remote notification
-	
-	ENSURE_UI_THREAD_1_ARG(arg);	
-	
+
+	ENSURE_UI_THREAD_1_ARG(arg);
+
 	//[self initializeIfNeeded];
-	
+
 	id userInfo = [arg objectAtIndex:0];
     NSNumber* inForeground = [arg objectAtIndex:1];
     NSNumber* wasLaunched = [arg objectAtIndex:2];
-    
+
 	ENSURE_DICT(userInfo);
-    
+
     NSMutableDictionary* data = [NSMutableDictionary dictionaryWithDictionary:userInfo];
     [data setValue:inForeground forKey:@"inForeground"];
     [data setValue:wasLaunched forKey:@"wasLaunched"];
-	
+
 	NSLog(@"[DEBUG] Urban Airship received notification");
     [self fireEvent:[self EVENT_URBAN_AIRSHIP_CALLBACK] withObject:data];
-	
+
     [self handleAutoBadgeReset];
 }
 
@@ -245,9 +254,9 @@
 -(void)setAutoBadge:(id)value
 {
 	NSInteger autoBadge = [TiUtils boolValue:value def:NO];
-	
+
     [UAirship push].autobadgeEnabled = autoBadge;
-    
+
     [self updateUAServer];
 }
 
@@ -259,16 +268,16 @@
 -(void)setBadgeNumber:(id)value
 {
 	NSInteger badgeNumber = [TiUtils intValue:value def:0];
-	
+
 	[[UAirship push] setBadgeNumber:badgeNumber];
-    
-    [self updateUAServer]; 
+
+    [self updateUAServer];
 }
 
 -(void)resetBadge:(id)args
 {
 	[[UAirship push] resetBadge];
-    
+
     [self updateUAServer];
 }
 
@@ -299,25 +308,25 @@
 -(void)setUserNotificationsEnabled:(id)value
 {
     ENSURE_SINGLE_ARG(value, NSNumber);
-    
+
     BOOL val = NO;
     if ([value intValue] != 0)
         val = YES;
-    
+
     if ((val == YES) && (self.pushHandler == nil)) {
         UA_LDEBUG(@"Setting up the notification handlers...");
         [UAirship push].pushNotificationDelegate = self;
-        
+
         // Set a delegate to handle incoming push notifications. Useful for displaying
         // notification when they are recieved in the foreground.
         // self.pushHandler = [[UAPushNotificationHandler alloc] init];
         // [UAirship push].pushNotificationDelegate = self.pushHandler;
         [UAirship push].registrationDelegate = self;
     }
-    
+
     UA_LDEBUG(@"Setting userNotificationEnabled....");
     [UAirship push].userPushNotificationsEnabled = val;
-    
+
     [self updateUAServer];
 }
 
@@ -325,43 +334,43 @@
 
 - (void)receivedForegroundNotification:(NSDictionary *)notification
                 fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler {
-    
+
     UA_LDEBUG(@"Received a notification while the app was already in the foreground");
-    
+
     // Do something with your customData JSON, then entire notification is also available
     NSMutableArray* data = [NSMutableArray arrayWithObject:notification];
     [data addObject:[NSNumber numberWithBool:YES]];
     [data addObject:[NSNumber numberWithBool:NO]];
     [self handleNotification:data];
-    
+
     // Be sure to call the completion handler with a UIBackgroundFetchResult
     completionHandler(UIBackgroundFetchResultNoData);
 }
 
 - (void)launchedFromNotification:(NSDictionary *)notification
           fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler{
-    
+
     UA_LDEBUG(@"The application was launched or resumed from a notification");
-    
+
     // Do something when launched via a notification
     NSMutableArray* data = [NSMutableArray arrayWithObject:notification];
     [data addObject:[NSNumber numberWithBool:NO]];
     [data addObject:[NSNumber numberWithBool:YES]];
     [self handleNotification:data];
-    
+
     // Be sure to call the completion handler with a UIBackgroundFetchResult
     completionHandler(UIBackgroundFetchResultNoData);
 }
 
 - (void)receivedBackgroundNotification:(NSDictionary *)notification
                 fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler {
-    
+
     // Do something with the notification in the background
     NSMutableArray* data = [NSMutableArray arrayWithObject:notification];
     [data addObject:[NSNumber numberWithBool:NO]];
     [data addObject:[NSNumber numberWithBool:NO]];
     [self handleNotification:data];
-    
+
     // Be sure to call the completion handler with a UIBackgroundFetchResult
     completionHandler(UIBackgroundFetchResultNoData);
 }
@@ -370,7 +379,7 @@
 - (void)registrationSucceededForChannelID:(NSString *)channelID deviceToken:(NSString *)deviceToken
 {
     NSString* channelId = [self getPushId];
-    
+
     //Don't let the device token be null on a simulator...
     if (deviceToken == nil)
     {
@@ -381,7 +390,7 @@
         if (channelId == nil)
             channelId = [deviceToken copy];
     }
-    
+
     NSMutableDictionary *data = [[NSMutableDictionary alloc] init];
     [data setObject:deviceToken forKey:@"iOSToken"];
     [data setObject:channelId forKey:@"deviceToken"];
@@ -395,4 +404,3 @@
 }
 
 @end
-
