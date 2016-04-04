@@ -53,6 +53,7 @@
 
 	// Default is automatically reset badge
 	autoResetBadge = YES;
+	initialized = YES;
     self.pushHandler = nil;
 
 	NSLog(@"[DEBUG] %@ loaded",self);
@@ -81,8 +82,7 @@
 
 -(void)_listenerAdded:(NSString *)type count:(int)count
 {
-    if (count == 1 && [type isEqualToString:@"my_event"])
-    {
+    if (count == 1 && [type isEqualToString:@"my_event"]) {
         // the first (of potentially many) listener is being added
         // for event named 'my_event'
     }
@@ -90,8 +90,7 @@
 
 -(void)_listenerRemoved:(NSString *)type count:(int)count
 {
-    if (count == 0 && [type isEqualToString:@"my_event"])
-    {
+    if (count == 0 && [type isEqualToString:@"my_event"]) {
         // the last listener called for event named 'my_event' has
         // been removed, we can optionally clean up any resources
         // since no body is listening at this point for that event
@@ -229,7 +228,7 @@
 -(BOOL)isFlying
 {
     // We are "flying" if we are initialized AND notifications are currently enabled on the application
-    return initialized && [self notificationsEnabled];
+    return initialized && [self pushEnabled];
 }
 
 -(void)updateUAServer
