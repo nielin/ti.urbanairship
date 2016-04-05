@@ -233,14 +233,8 @@
 
 -(BOOL)notificationsEnabled
 {
-	if ([[UIApplication sharedApplication] respondsToSelector:@selector(currentUserNotificationSettings)]) {
-        UIUserNotificationType types = [[[UIApplication sharedApplication] currentUserNotificationSettings] types];
-        return (types & UIUserNotificationTypeAlert);
-    }
-    else {
-        UIRemoteNotificationType types = [[UIApplication sharedApplication] enabledRemoteNotificationTypes];
-        return (types & UIRemoteNotificationTypeAlert);
-    }
+	UIRemoteNotificationType types = [[UIApplication sharedApplication] enabledRemoteNotificationTypes];
+	return (types & UIRemoteNotificationTypeAlert);
 }
 
 -(BOOL)isFlying
