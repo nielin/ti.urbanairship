@@ -12,18 +12,13 @@
 #import "TiBlob.h"
 #import "TiUIButtonBarProxy.h"
 
-#import "UAirship.h"
-#import "UAConfig.h"
-#import "UAPush.h"
-#import "UAPushNotificationHandler.h"
-
 @interface TiUrbanairshipModule()
 @property (nonatomic, strong) UAPushNotificationHandler *pushHandler;
 @end
 
 @implementation TiUrbanairshipModule
 
-@synthesize autoResetBadge, notificationsEnabled;
+@synthesize autoResetBadge, notificationsEnabled, initialized;
 
 -(NSString*) EVENT_URBAN_AIRSHIP_CALLBACK { return @"push_notification_callback"; }
 -(NSString*) EVENT_URBAN_AIRSHIP_SUCCESS { return @"push_registration_success"; }
@@ -52,8 +47,7 @@
 	[super startup];
 
 	// Default is automatically reset badge
-	autoResetBadge = YES;
-	initialized = YES;
+	self.autoResetBadge = YES;
     self.pushHandler = nil;
 
 	NSLog(@"[DEBUG] %@ loaded",self);
@@ -104,7 +98,7 @@
 	NSLog(@"[DEBUG] Urban Airship received suspend notification");
 
 	// See MOD-165
-	if (!initialized) {
+	if (![self isInitialized]) {
 		NSLog(@"[DEBUG] Ignoring notification -- not initialized yet");
 		return;
 	}
@@ -114,7 +108,7 @@
 -(void)resumed:(id)sender
 {
 	// See MOD-165
-	if (!initialized) {
+	if (![self isInitialized]) {
 		NSLog(@"[DEBUG] Ignoring notification -- not initialized yet");
 		return;
 	}
@@ -125,7 +119,7 @@
 
 - (void)checkIfSimulator {
     if ([[[UIDevice currentDevice] model] rangeOfString:@"Simulator"].location != NSNotFound) {
-		NSLog(@"[ERROR] You can see UAInbox in the simulator, but you will not be able to receive push notifications");
+		NSLog(@"[ERROR] You can see UAInbox in the simulator, but you will not be able to receive push notifications.");
     }
 }
 
@@ -165,6 +159,21 @@
 	[UAirship takeOff:config];
 }
 
+-(void)initialize
+{
+    if ([self isInitialized] == YES) {
+        return;
+    }
+
+    [self checkIfSimulator];
+
+    //[[UAirship inbox] setDelegate:self];
+    //[[UAirship push] setPushNotificationDelegate:self];
+    //[[UAirship push] setUserPushNotificationsEnabled:YES];
+
+    [self setInitialized:YES];
+}
+
 #pragma Public APIs
 
 -(NSArray*)getUserNotificationTypes
@@ -202,8 +211,6 @@
 
 	ENSURE_UI_THREAD_1_ARG(arg);
 
-	//[self initializeIfNeeded];
-
 	id userInfo = [arg objectAtIndex:0];
     NSNumber* inForeground = [arg objectAtIndex:1];
     NSNumber* wasLaunched = [arg objectAtIndex:2];
@@ -217,30 +224,43 @@
 	NSLog(@"[DEBUG] Urban Airship received notification");
     [self fireEvent:[self EVENT_URBAN_AIRSHIP_CALLBACK] withObject:data];
 
+	if (![self isInitialized]) {
+		[self initialize];
+	}
+
     [self handleAutoBadgeReset];
 }
 
--(BOOL)pushEnabled
+-(BOOL)notificationsEnabled
 {
-    return [[UIApplication sharedApplication] enabledRemoteNotificationTypes] != UIRemoteNotificationTypeNone;
+	if ([[UIApplication sharedApplication] respondsToSelector:@selector(currentUserNotificationSettings)]) {
+        UIUserNotificationType types = [[[UIApplication sharedApplication] currentUserNotificationSettings] types];
+        return (types & UIUserNotificationTypeAlert);
+    }
+    else {
+        UIRemoteNotificationType types = [[UIApplication sharedApplication] enabledRemoteNotificationTypes];
+        return (types & UIRemoteNotificationTypeAlert);
+    }
 }
 
 -(BOOL)isFlying
 {
-    // We are "flying" if we are initialized AND notifications are currently enabled on the application
-    return initialized && [self pushEnabled];
+	NSLog(@"[WARN] [Ti.UrbanAirship] The method 'isFlying' is deprecated. Please use 'notificationsEnabled' instead.");
+	return [self notificationsEnabled];
 }
 
 -(void)updateUAServer
 {
-    if (initialized) {
-        [[UAirship push] updateRegistration];
+	if (![self isInitialized]) {
+        [self initialize];
     }
+
+    [[UAirship push] updateRegistration];
 }
 
 -(void)handleAutoBadgeReset
 {
-    if (autoResetBadge) {
+    if ([self autoResetBadge] == YES) {
         [[UAirship push] resetBadge];
         [self updateUAServer];
     }
@@ -297,6 +317,28 @@
 -(NSString*)getPushId
 {
     return [[UAirship push] channelID];
+}
+
+-(void)setAlias:(id)value
+{
+    NSString* alias = [TiUtils stringValue:value];
+
+    [[UAirship push] setAlias:alias];
+}
+
+-(NSString*)alias
+{
+    return [[UAirship push] alias];
+}
+
+-(NSString*)deviceToken
+{
+    return [[UAirship push] deviceToken];
+}
+
+-(BOOL)quietTimeEnabled
+{
+    return [[UAirship push] isQuietTimeEnabled];
 }
 
 -(BOOL)getUserNotificationsEnabled

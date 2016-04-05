@@ -5,17 +5,17 @@
  */
 
 #import "TiModule.h"
+
+#import "UAirship.h"
+#import "UAConfig.h"
 #import "UAPush.h"
+#import "UAPushNotificationHandler.h"
 
 @interface TiUrbanairshipModule : TiModule <UAPushNotificationDelegate, UARegistrationDelegate>
-{
-	BOOL initialized;
-	BOOL autoResetBadge;
-    
-}
 
-@property (readonly, nonatomic) BOOL notificationsEnabled;
-@property (readwrite, nonatomic) BOOL autoResetBadge;
+@property(readonly,nonatomic) BOOL notificationsEnabled;
+@property(readwrite,nonatomic) BOOL autoResetBadge;
+@property(nonatomic,readwrite,getter=isInitialized) BOOL initialized;
 
 @property(nonatomic,readonly) NSString *EVENT_URBAN_AIRSHIP_CALLBACK;
 @property(nonatomic,readonly) NSString *EVENT_URBAN_AIRSHIP_SUCCESS;
